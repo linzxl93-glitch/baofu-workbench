@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#7C5CFC" />
+  <title>暴富专属工作台</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-blob blob-a"></div>
+  <div class="bg-blob blob-b"></div>
+  <div class="bg-blob blob-c"></div>
+
+  <!-- 登录门 -->
+  <div class="login-mask" id="loginMask">
+    <div class="login-card">
+      <div class="login-logo">💰</div>
+      <h2>暴富专属工作台</h2>
+      <p class="login-sub">请输入访问密码</p>
+      <input type="password" id="loginPwd" placeholder="密码" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()" />
+      <button class="btn" onclick="doLogin()" style="width:100%;margin-top:10px">进入</button>
+      <p class="login-hint">登录后 7 天免登录 · 数据仅在本机</p>
+    </div>
+  </div>
+
+  <div class="app">
+    <!-- 左侧纵向导航栏 -->
+    <nav class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-avatar">💰</div>
+        <div class="brand-name">暴富<br/>工作台</div>
+      </div>
+      <div class="nav-list">
+        <button class="nav-btn active" data-view="plan" onclick="setView('plan')">
+          <span class="nav-ico">📋</span><span class="nav-label">每日计划</span>
+        </button>
+        <button class="nav-btn" data-view="expense" onclick="setView('expense')">
+          <span class="nav-ico">💰</span><span class="nav-label">每日花费</span>
+        </button>
+        <button class="nav-btn" data-view="idea" onclick="setView('idea')">
+          <span class="nav-ico">💡</span><span class="nav-label">灵感记录</span>
+        </button>
+        <button class="nav-btn" data-view="exercise" onclick="setView('exercise')">
+          <span class="nav-ico">🏃</span><span class="nav-label">锻炼身体</span>
+        </button>
+        <button class="nav-btn" data-view="reading" onclick="setView('reading')">
+          <span class="nav-ico">📖</span><span class="nav-label">每日阅读</span>
+        </button>
+      </div>
+      <div class="logout-wrap"><button class="logout-btn" onclick="logout()">↪ 退出登录</button></div>
+    </nav>
+
+    <!-- 右侧内容区 -->
+    <main class="main">
+      <header class="topbar">
+        <h1 id="viewTitle">每日计划</h1>
+        <span class="topbar-date" id="topDate"></span>
+      </header>
+      <section class="view" id="view"></section>
+    </main>
+  </div>
+
+  <!-- 底部全局操作条 -->
+  <footer class="footerbar">
+    <button class="reset-btn" onclick="resetToday()">🧹 重置今日（仅清计划）</button>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
