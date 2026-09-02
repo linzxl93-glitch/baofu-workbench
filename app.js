@@ -70,14 +70,16 @@ function esc(s) {
 }
 
 /* ---------- 渲染调度 ---------- */
-const TITLES = { plan: '每日计划', expense: '每日花费', idea: '灵感记录', exercise: '锻炼身体', reading: '每日阅读' };
+const TITLES = { plan: '每日计划', expense: '每日花费', idea: '灵感记录', exercise: '锻炼身体', reading: '每日阅读', sleep: '睡眠闹钟' };
 
 function setView(v) {
+  if (sleepTimer) { clearInterval(sleepTimer); sleepTimer = null; }
   view = v;
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v));
   document.getElementById('viewTitle').textContent = TITLES[v];
   document.getElementById('topDate').textContent = new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' });
   render();
+  if (v === 'sleep') startSleepCount();
 }
 function render() {
   const el = document.getElementById('view');
@@ -86,6 +88,7 @@ function render() {
   else if (view === 'idea') el.innerHTML = renderIdea();
   else if (view === 'exercise') el.innerHTML = renderExercise();
   else if (view === 'reading') el.innerHTML = renderReading();
+  else if (view === 'sleep') el.innerHTML = renderSleep();
 }
 
 /* ---------- 1. 每日计划 ---------- */
@@ -350,6 +353,154 @@ function addReading() {
 }
 function delReading(id) { state.readings = state.readings.filter(r => r.id !== id); save(); render(); }
 
+/* ---------- 6. 睡眠闹钟（90 分钟周期法）---------- */
+const SLEEP_KEY = 'baofu_sleep_alarm_v1';
+const CYCLE_MIN = 90;
+const FALL_ASLEEP_MIN = 15; // 入睡缓冲
+let sleepTimer = null;
+let alarmTimeout = null;
+let alarmFired = false;
+
+function renderSleep() {
+  const now = new Date();
+  const rows = [];
+  for (let n = 1; n <= 10; n++) {
+    const wake = new Date(now.getTime() + n * CYCLE_MIN * 60000 + FALL_ASLEEP_MIN * 60000);
+    rows.push({ n, wake });
+  }
+  const alarm = loadSleepAlarm();
+  const listHtml = rows.map(r => {
+    const sel = alarm && Math.abs(new Date(alarm.targetTs).getTime() - r.wake.getTime()) < 60000;
+    const diff = r.wake - now;
+    const h = Math.floor(diff / 3600000);
+    const m = Math.round((diff % 3600000) / 60000);
+    return `
+      <li class="item sleep-row ${sel ? 'sel' : ''}" onclick="setSleepAlarm(${r.wake.getTime()}, ${r.n})">
+        <div class="sleep-cyc">${r.n}<small>周期</small></div>
+        <div class="body">
+          <div class="title">${pad(r.wake.getHours())}:${pad(r.wake.getMinutes())}</div>
+          <div class="meta">约 ${h > 0 ? h + ' 小时 ' : ''}${m} 分钟后醒</div>
+        </div>
+        ${sel ? '<span class="sleep-pick">✓ 已设</span>' : '<span class="sleep-pick ghost">设闹钟</span>'}
+      </li>`;
+  }).join('');
+
+  const alarmHtml = alarm ? renderAlarmCard(alarm) : '';
+
+  return `
+    <div class="card">
+      <div class="card-title">⏰ 睡眠闹钟 <span class="card-sub">· 90 分钟周期法</span></div>
+      <div class="sleep-note">以当前时间 <b>${pad(now.getHours())}:${pad(now.getMinutes())}</b> 为起点，每个周期 90 分钟，并加上约 15 分钟入睡缓冲。点任意一行设为闹钟。</div>
+      <div class="sleep-warn">⚠️ 网页闹钟需保持本页 / 已安装的 App 在后台运行才会响。锁屏或关闭后可能不响，建议同时设手机自带闹钟兜底。</div>
+      <button class="btn ghost sm" style="margin:4px 0" onclick="requestNotify()">🔔 开启通知权限</button>
+    </div>
+    ${alarmHtml}
+    <div class="card">
+      <div class="card-title">选择醒来时间（第 1–10 周期）</div>
+      <ul class="list">${listHtml}</ul>
+    </div>`;
+}
+
+function renderAlarmCard(alarm) {
+  const t = new Date(alarm.targetTs);
+  return `
+    <div class="card sleep-alarm">
+      <div class="card-title">🔔 已设闹钟</div>
+      <div class="sleep-big">${pad(t.getHours())}:${pad(t.getMinutes())}</div>
+      <div class="sleep-count" id="sleepCount">计算中…</div>
+      <div class="sleep-cyc-tag">第 ${alarm.cycleN} 周期 · 约 ${alarm.cycleN * CYCLE_MIN + FALL_ASLEEP_MIN} 分钟睡眠</div>
+      <button class="btn ghost sm" onclick="cancelSleepAlarm()">取消闹钟</button>
+    </div>`;
+}
+
+function loadSleepAlarm() {
+  try { return JSON.parse(localStorage.getItem(SLEEP_KEY)); } catch (e) { return null; }
+}
+function startSleepCount() {
+  updateSleepCount();
+  if (sleepTimer) clearInterval(sleepTimer);
+  sleepTimer = setInterval(updateSleepCount, 1000);
+}
+function updateSleepCount() {
+  const el = document.getElementById('sleepCount');
+  if (!el) return;
+  const alarm = loadSleepAlarm();
+  if (!alarm) { el.textContent = ''; return; }
+  const diff = new Date(alarm.targetTs).getTime() - Date.now();
+  if (diff <= 0) {
+    el.textContent = '⏰ 时间到！';
+    if (!alarmFired) { alarmFired = true; ringAlarm(); }
+    return;
+  }
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  el.textContent = `还剩 ${h > 0 ? h + ' 小时 ' : ''}${m} 分 ${s} 秒`;
+}
+function setSleepAlarm(ts, n) {
+  alarmFired = false;
+  localStorage.setItem(SLEEP_KEY, JSON.stringify({ targetTs: ts, cycleN: n, setAt: Date.now() }));
+  requestNotify(true);
+  ensureWakeCheck();
+  render();
+  const t = new Date(ts);
+  toast('已设闹钟：' + pad(t.getHours()) + ':' + pad(t.getMinutes()) + '（第' + n + '周期）');
+}
+function cancelSleepAlarm() {
+  localStorage.removeItem(SLEEP_KEY);
+  alarmFired = false;
+  if (alarmTimeout) { clearTimeout(alarmTimeout); alarmTimeout = null; }
+  if (sleepTimer) { clearInterval(sleepTimer); sleepTimer = null; }
+  render();
+  toast('已取消闹钟');
+}
+function ensureWakeCheck() {
+  if (alarmTimeout) clearTimeout(alarmTimeout);
+  const alarm = loadSleepAlarm();
+  if (!alarm) return;
+  const diff = new Date(alarm.targetTs).getTime() - Date.now();
+  if (diff <= 0) { if (!alarmFired) { alarmFired = true; ringAlarm(); } return; }
+  alarmTimeout = setTimeout(() => { if (!alarmFired) { alarmFired = true; ringAlarm(); } }, diff);
+}
+function ringAlarm() {
+  const a = loadSleepAlarm();
+  const n = a ? a.cycleN : '';
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification('⏰ 暴富起床啦', { body: '第' + n + '个周期结束，现在醒最清爽～', tag: 'baofu-sleep', requireInteraction: true });
+    } catch (e) {}
+  }
+  if (navigator.vibrate) { try { navigator.vibrate([400, 200, 400, 200, 400, 200, 400]); } catch (e) {} }
+  playBeep();
+  toast('⏰ 闹钟时间到！');
+}
+function playBeep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const beep = (freq, start, dur) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = freq;
+      o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+      g.gain.exponentialRampToValueAtTime(0.5, ctx.currentTime + start + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
+      o.start(ctx.currentTime + start); o.stop(ctx.currentTime + start + dur);
+    };
+    beep(880, 0, 0.5); beep(880, 0.6, 0.5); beep(1046, 1.2, 0.6);
+  } catch (e) {}
+}
+function requestNotify(silent) {
+  if (!('Notification' in window)) { if (!silent) toast('此浏览器不支持通知'); return; }
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().then(p => { if (!silent) toast(p === 'granted' ? '通知已开启' : '通知被拒绝'); });
+  } else if (!silent) {
+    toast(Notification.permission === 'granted' ? '通知已开启' : '通知被拒绝，请在浏览器设置里允许');
+  }
+}
+
 /* ---------- 底部：重置今日 ---------- */
 function resetToday() {
   if (!confirm('确定清空「今日计划」吗？\n仅清除今天的待办，其他数据不受影响，且不可撤销。')) return;
@@ -398,6 +549,13 @@ function doLogin() {
 function logout() {
   localStorage.removeItem(AUTH_KEY);
   document.getElementById('loginMask').classList.add('show');
+}
+
+/* ---------- PWA 注册（可“添加到主屏幕”）---------- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
 }
 
 /* ---------- 启动 ---------- */

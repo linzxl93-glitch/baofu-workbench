@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#7C5CFC" />
   <title>暴富专属工作台</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="暴富工作台" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -46,6 +51,9 @@
         </button>
         <button class="nav-btn" data-view="reading" onclick="setView('reading')">
           <span class="nav-ico">📖</span><span class="nav-label">每日阅读</span>
+        </button>
+        <button class="nav-btn" data-view="sleep" onclick="setView('sleep')">
+          <span class="nav-ico">⏰</span><span class="nav-label">睡眠闹钟</span>
         </button>
       </div>
       <div class="logout-wrap"><button class="logout-btn" onclick="logout()">↪ 退出登录</button></div>

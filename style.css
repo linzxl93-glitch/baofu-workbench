@@ -421,3 +421,42 @@ li.item.done .title { text-decoration: line-through; color: var(--ink-soft); }
   .main { padding: 26px 24px; }
   .topbar h1 { font-size: 26px; }
 }
+
+/* ===== 睡眠闹钟模块 ===== */
+.nav-list { overflow-y: auto; scrollbar-width: none; }
+.nav-list::-webkit-scrollbar { display: none; }
+.sleep-note {
+  font-size: 12px; color: var(--ink-soft); line-height: 1.6;
+  background: rgba(124, 92, 252, 0.07); border: 1px solid rgba(124, 92, 252, 0.14);
+  border-radius: 14px; padding: 12px 14px; margin-bottom: 10px;
+}
+.sleep-note b { color: var(--primary-deep); }
+.sleep-warn {
+  font-size: 12px; color: #b8860b; line-height: 1.6;
+  background: #fff8e6; border: 1px solid #ffe9a8;
+  border-radius: 14px; padding: 10px 14px; margin-bottom: 4px;
+}
+.sleep-row { cursor: pointer; transition: all 0.15s ease; }
+.sleep-row:active { transform: scale(0.98); }
+.sleep-row.sel { background: linear-gradient(150deg, rgba(124,92,252,0.16), rgba(124,92,252,0.06)); border-color: var(--primary); }
+.sleep-cyc {
+  flex: 0 0 46px; width: 46px; height: 46px; border-radius: 14px;
+  display: grid; place-items: center; font-weight: 900; font-size: 18px; color: #fff;
+  background: linear-gradient(145deg, var(--primary), var(--primary-2));
+}
+.sleep-cyc small { display: block; font-size: 9px; font-weight: 600; opacity: 0.85; }
+.sleep-pick {
+  flex: 0 0 auto; font-size: 12px; font-weight: 800; color: #fff;
+  background: var(--primary); padding: 6px 12px; border-radius: 999px;
+}
+.sleep-pick.ghost { color: var(--primary-deep); background: rgba(124, 92, 252, 0.12); }
+.sleep-alarm { text-align: center; }
+.sleep-big { font-size: 52px; font-weight: 900; color: var(--primary-deep); line-height: 1.1; margin: 6px 0; }
+.sleep-count { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.sleep-cyc-tag { font-size: 12px; color: var(--ink-soft); margin-bottom: 12px; }
+
+@media (max-width: 719px) {
+  .nav-btn { padding: 10px 4px; }
+  .nav-btn .nav-ico { width: 40px; height: 40px; }
+  .nav-btn .nav-label { font-size: 10px; }
+}
