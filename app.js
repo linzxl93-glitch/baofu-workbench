@@ -369,19 +369,22 @@ function renderSleep() {
     rows.push({ n, wake });
   }
   const alarm = loadSleepAlarm();
+  const def = rows[4]; // 默认第 5 周期（约 7.5h，黄金组合）
   const listHtml = rows.map(r => {
     const sel = alarm && Math.abs(new Date(alarm.targetTs).getTime() - r.wake.getTime()) < 60000;
     const diff = r.wake - now;
     const h = Math.floor(diff / 3600000);
     const m = Math.round((diff % 3600000) / 60000);
+    const hh = r.wake.getHours(), mm = r.wake.getMinutes();
     return `
-      <li class="item sleep-row ${sel ? 'sel' : ''}" onclick="setSleepAlarm(${r.wake.getTime()}, ${r.n})">
+      <li class="item sleep-row ${sel ? 'sel' : ''}" onclick="jumpToPhoneAlarm(${hh}, ${mm}, ${r.n})">
         <div class="sleep-cyc">${r.n}<small>周期</small></div>
         <div class="body">
-          <div class="title">${pad(r.wake.getHours())}:${pad(r.wake.getMinutes())}</div>
+          <div class="title">${pad(hh)}:${pad(mm)}</div>
           <div class="meta">约 ${h > 0 ? h + ' 小时 ' : ''}${m} 分钟后醒</div>
         </div>
-        ${sel ? '<span class="sleep-pick">✓ 已设</span>' : '<span class="sleep-pick ghost">设闹钟</span>'}
+        <button class="btn ghost xs" onclick="event.stopPropagation(); setSleepAlarm(${r.wake.getTime()}, ${r.n})">🔔网页</button>
+        ${sel ? '<span class="sleep-pick">✓ 已设</span>' : '<span class="sleep-pick ghost">设手机闹钟</span>'}
       </li>`;
   }).join('');
 
@@ -390,15 +393,58 @@ function renderSleep() {
   return `
     <div class="card">
       <div class="card-title">⏰ 睡眠闹钟 <span class="card-sub">· 90 分钟周期法</span></div>
-      <div class="sleep-note">以当前时间 <b>${pad(now.getHours())}:${pad(now.getMinutes())}</b> 为起点，每个周期 90 分钟，并加上约 15 分钟入睡缓冲。点任意一行设为闹钟。</div>
-      <div class="sleep-warn">⚠️ 网页闹钟需保持本页 / 已安装的 App 在后台运行才会响。锁屏或关闭后可能不响，建议同时设手机自带闹钟兜底。</div>
-      <button class="btn ghost sm" style="margin:4px 0" onclick="requestNotify()">🔔 开启通知权限</button>
+      <div class="sleep-note">以当前时间 <b>${pad(now.getHours())}:${pad(now.getMinutes())}</b> 为起点，每个周期 90 分钟，并加约 15 分钟入睡缓冲。点任意一行直接跳去设手机闹钟。</div>
+      <div class="sleep-jump">
+        <button class="btn primary sm" onclick="jumpToPhoneAlarm(${def.wake.getHours()}, ${def.wake.getMinutes()}, 5)">📱 一键跳到手机闹钟（第5周期）</button>
+        <button class="btn ghost sm" onclick="openClockApp()">打开手机闹钟 App</button>
+      </div>
+      <div class="sleep-tip">Android：直接带入时间跳进闹钟页；iPhone：自动复制时间，去「时钟 → 闹钟 → +」粘贴即可。</div>
+      <button class="btn ghost sm" style="margin:4px 0" onclick="requestNotify()">🔔 开启网页通知权限</button>
+      <div class="sleep-warn">⚠️ 网页提醒需保持本页 / 已装 App 后台运行才响；重要起床请用手机自带闹钟最稳。</div>
     </div>
     ${alarmHtml}
     <div class="card">
       <div class="card-title">选择醒来时间（第 1–10 周期）</div>
       <ul class="list">${listHtml}</ul>
     </div>`;
+}
+
+/* 跳转到手机自带闹钟：Android 用 SET_ALARM 意图带入时间，iPhone 复制时间并提示 */
+async function copyText(txt) {
+  try { await navigator.clipboard.writeText(txt); return true; }
+  catch (e) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = txt; ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand('copy'); document.body.removeChild(ta); return ok;
+    } catch (e2) { return false; }
+  }
+}
+function isAndroid() { return /Android/i.test(navigator.userAgent || ''); }
+function jumpToPhoneAlarm(h, m, n) {
+  const timeStr = pad(h) + ':' + pad(m);
+  copyText(timeStr);
+  if (isAndroid()) {
+    toast('已复制 ' + timeStr + '，正在打开手机闹钟…');
+    // SET_ALARM 是 Android 标准意图，可带入小时/分钟/振动/标签，跳进闹钟页
+    const intent = 'intent://#Intent;action=android.intent.action.SET_ALARM;' +
+      'i.android.intent.extra.alarm.HOUR=' + h + ';' +
+      'i.android.intent.extra.alarm.MINUTES=' + m + ';' +
+      'B.android.intent.extra.alarm.VIBRATE=true;' +
+      'S.android.intent.extra.alarm.MESSAGE=' + encodeURIComponent('暴富起床') + ';end';
+    setTimeout(() => { window.location.href = intent; }, 350);
+  } else {
+    toast('已复制 ' + timeStr + ' ✓ 打开「时钟」→ 闹钟 → 点 + → 填入/粘贴');
+  }
+}
+function openClockApp() {
+  if (isAndroid()) {
+    toast('正在打开手机闹钟列表…');
+    window.location.href = 'intent://#Intent;action=android.intent.action.SHOW_ALARMS;end';
+  } else {
+    toast('iPhone 请手动打开「时钟」App → 闹钟 → 点 +');
+  }
 }
 
 function renderAlarmCard(alarm) {
