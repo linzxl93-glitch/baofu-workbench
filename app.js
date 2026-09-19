@@ -13,6 +13,7 @@ const QUICK_EX = [
   { type: '跳绳', icon: '🤾' },
   { type: '瑜伽', icon: '🌿' },
 ];
+const DEFAULT_TASK_TYPES = ['论文阅读', '项目推进', '组会准备', '其他'];
 
 /* ---------- 状态 ---------- */
 let state = load();
@@ -25,7 +26,7 @@ let taskViewMode = 'list'; // 'list' | 'kanban'
 
 /* ---------- 工具函数 ---------- */
 function blank() {
-  return { plans: {}, expenses: [], inspirations: [], exercises: [], readings: [], tasks: [] };
+  return { plans: {}, expenses: [], inspirations: [], exercises: [], readings: [], tasks: [], taskTypes: [...DEFAULT_TASK_TYPES] };
 }
 function load() {
   try {
@@ -551,14 +552,42 @@ function requestNotify(silent) {
 }
 
 /* ---------- 7. 任务看板 ---------- */
-const TASK_TYPES = ['全部', '论文阅读', '项目推进', '组会准备', '其他'];
+const TASK_TYPES_KEY = 'baofu_task_types_v1';
+const DEFAULT_TYPES = ['论文阅读', '项目推进', '组会准备', '其他'];
 const TASK_STATUSES = ['待开始', '进行中', '已完成'];
 const PRIORITY_COLORS = { P0: '#ff5d73', P1: '#f59e0b', P2: '#94a3b8' };
 const STATUS_COLORS = { '待开始': '#94a3b8', '进行中': '#3b82f6', '已完成': '#22c55e' };
 
+function loadTaskTypes() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TASK_TYPES_KEY));
+    return (saved && saved.length > 0) ? saved : [...DEFAULT_TYPES];
+  } catch (e) { return [...DEFAULT_TYPES]; }
+}
+function saveTaskTypes(types) { localStorage.setItem(TASK_TYPES_KEY, JSON.stringify(types)); }
+function getTaskTypes() { return loadTaskTypes(); }
+function addTaskType(name) {
+  const types = loadTaskTypes();
+  if (types.includes(name)) { toast('类型已存在'); return false; }
+  types.push(name);
+  saveTaskTypes(types);
+  return true;
+}
+function deleteTaskType(name) {
+  if (name === '其他') { toast('"其他" 不能删除'); return false; }
+  let types = loadTaskTypes();
+  types = types.filter(t => t !== name);
+  saveTaskTypes(types);
+  // 同时把用了该类型的已有任务改为"其他"
+  (state.tasks || []).forEach(t => { if (t.type === name) t.type = '其他'; });
+  save();
+  return true;
+}
+
 function renderTask() {
   const tasks = state.tasks || [];
   const today = todayStr();
+  const types = getTaskTypes();
   // 今日三件事：focus 任务
   const focusTasks = tasks.filter(t => t.focus && t.status !== '已完成');
   // Deadline 倒计时：有 deadline 且未完成
@@ -570,7 +599,7 @@ function renderTask() {
   // Tab 过滤
   const filtered = taskTab === 'all' ? tasks : tasks.filter(t => t.type === taskTab);
   const counts = {};
-  TASK_TYPES.slice(1).forEach(tp => { counts[tp] = tasks.filter(t => t.type === tp).length; });
+  types.forEach(tp => { counts[tp] = tasks.filter(t => t.type === tp).length; });
 
   const summaryHtml = `
     <div class="task-summary">
@@ -594,8 +623,8 @@ function renderTask() {
   const tabsHtml = `
     <div class="task-tabs">
       <button class="task-tab ${taskTab === 'all' ? 'active' : ''}" onclick="switchTaskTab('all')">全部<span class="task-tab-count">${tasks.length}</span></button>
-      ${TASK_TYPES.slice(1).map(tp => `
-        <button class="task-tab ${taskTab === tp ? 'active' : ''}" onclick="switchTaskTab('${tp}')">${tp}<span class="task-tab-count">${counts[tp]}</span></button>
+      ${types.map(tp => `
+        <button class="task-tab ${taskTab === tp ? 'active' : ''}" onclick="switchTaskTab('${esc(tp)}')">${esc(tp)}<span class="task-tab-count">${counts[tp] || 0}</span></button>
       `).join('')}
       <button class="task-tab ${taskViewMode === 'kanban' ? 'active' : ''}" onclick="toggleTaskView()">📊 看板</button>
     </div>`;
@@ -698,7 +727,10 @@ function openTaskModal(id) {
   const modal = document.getElementById('taskModal');
   document.getElementById('tmTitle').textContent = t ? '编辑任务' : '新增任务';
   document.getElementById('tmName').value = t ? t.name : '';
-  document.getElementById('tmType').value = t ? t.type : '项目推进';
+  // 动态填充类型下拉
+  const sel = document.getElementById('tmType');
+  const types = loadTaskTypes();
+  sel.innerHTML = types.map(tp => `<option ${t && t.type === tp ? 'selected' : ''}>${esc(tp)}</option>`).join('');
   document.getElementById('tmStatus').value = t ? t.status : '待开始';
   document.getElementById('tmPriority').value = t ? t.priority : '';
   document.getElementById('tmDeadline').value = t ? (t.deadline || '') : '';
@@ -707,10 +739,12 @@ function openTaskModal(id) {
   document.getElementById('tmFocus').checked = t ? t.focus : false;
   document.getElementById('tmNote').value = t ? (t.note || '') : '';
   document.getElementById('tmDelete').style.display = t ? '' : 'none';
+  document.getElementById('typeManager').classList.remove('show');
   modal.classList.add('show');
 }
 function closeTaskModal() {
   document.getElementById('taskModal').classList.remove('show');
+  document.getElementById('typeManager').classList.remove('show');
   editingTaskId = null;
 }
 function saveTask() {
@@ -742,6 +776,55 @@ function deleteTask() {
   state.tasks = state.tasks.filter(x => x.id !== editingTaskId);
   save(); closeTaskModal(); render();
   toast('任务已删除');
+}
+
+/* 类型管理 */
+function toggleTypeManager() {
+  const mgr = document.getElementById('typeManager');
+  if (mgr.classList.contains('show')) {
+    mgr.classList.remove('show');
+  } else {
+    renderTypeManagerList();
+    mgr.classList.add('show');
+  }
+}
+function renderTypeManagerList() {
+  const types = loadTaskTypes();
+  const list = document.getElementById('typeManagerList');
+  list.innerHTML = types.map(t => `
+    <div class="type-manager-item">
+      <span>${esc(t)}</span>
+      ${t === '其他' ? '' : `<button class="type-del-btn" onclick="removeTaskType('${esc(t)}')" title="删除">✕</button>`}
+    </div>`).join('');
+}
+function addNewType() {
+  const inp = document.getElementById('newTypeName');
+  const name = inp.value.trim();
+  if (!name) return;
+  if (addTaskType(name)) {
+    inp.value = '';
+    renderTypeManagerList();
+    refreshTypeSelect();
+    toast('类型「' + name + '」已添加');
+  }
+}
+function removeTaskType(name) {
+  const types = loadTaskTypes();
+  const count = (state.tasks || []).filter(t => t.type === name).length;
+  const msg = count > 0
+    ? `类型「${name}」下有 ${count} 个任务，删除后它们会变成「其他」。确定？`
+    : `确定删除类型「${name}」？`;
+  if (!confirm(msg)) return;
+  deleteTaskType(name);
+  renderTypeManagerList();
+  refreshTypeSelect();
+  toast('类型「' + name + '」已删除');
+}
+function refreshTypeSelect() {
+  const sel = document.getElementById('tmType');
+  const types = loadTaskTypes();
+  const cur = sel.value;
+  sel.innerHTML = types.map(t => `<option ${t === cur ? 'selected' : ''}>${esc(t)}</option>`).join('');
 }
 
 /* ---------- 底部：重置今日 ---------- */

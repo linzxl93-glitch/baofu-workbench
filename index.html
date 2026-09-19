@@ -92,10 +92,15 @@
         </div>
         <div class="task-form-row">
           <div class="task-form-group">
-            <label>类型</label>
-            <select id="tmType">
-              <option>论文阅读</option><option>项目推进</option><option>组会准备</option><option>其他</option>
-            </select>
+            <label>类型 <button class="type-manage-btn" onclick="toggleTypeManager()" type="button">⚙ 管理</button></label>
+            <select id="tmType"></select>
+            <div class="type-manager" id="typeManager">
+              <div class="type-manager-list" id="typeManagerList"></div>
+              <div class="type-manager-add">
+                <input id="newTypeName" placeholder="新类型名称" onkeydown="if(event.key==='Enter'){event.preventDefault();addNewType()}" />
+                <button class="type-add-btn" onclick="addNewType()" type="button">＋</button>
+              </div>
+            </div>
           </div>
           <div class="task-form-group">
             <label>状态</label>
