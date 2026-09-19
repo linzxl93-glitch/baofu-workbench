@@ -601,22 +601,47 @@ function renderTask() {
   const counts = {};
   types.forEach(tp => { counts[tp] = tasks.filter(t => t.type === tp).length; });
 
+  // 每个卡片显示最多3条具体任务
+  const focusHtml = focusTasks.slice(0, 3).map(t =>
+    `<div class="task-summary-item"><span class="task-summary-dot" style="background:var(--primary)"></span><span class="task-summary-text">${esc(t.name)}</span></div>`
+  ).join('') || '<div class="task-summary-empty">暂无焦点任务</div>';
+
+  const deadlineHtml = deadlineTasks.slice(0, 3).map(t => {
+    const days = Math.ceil((new Date(t.deadline) - new Date(today)) / 86400000);
+    const tag = days < 0 ? 'red' : days <= 1 ? 'orange' : 'green';
+    const label = days < 0 ? '逾期' + Math.abs(days) + '天' : days === 0 ? '今天' : days + '天';
+    return `<div class="task-summary-item"><span class="task-summary-dot" style="background:${tag === 'red' ? 'var(--danger)' : tag === 'orange' ? '#f59e0b' : 'var(--ok)'}"></span><span class="task-summary-text">${esc(t.name)}</span><span class="task-summary-tag ${tag}">${label}</span></div>`;
+  }).join('') || '<div class="task-summary-empty">暂无 Deadline</div>';
+
+  const blockerHtml = blockerTasks.slice(0, 3).map(t =>
+    `<div class="task-summary-item"><span class="task-summary-dot" style="background:var(--danger)"></span><span class="task-summary-text">${esc(t.name)}</span></div>`
+  ).join('') || '<div class="task-summary-empty">暂无卡点</div>';
+
   const summaryHtml = `
     <div class="task-summary">
       <div class="task-summary-card">
-        <div class="task-summary-icon" style="background:rgba(124,92,252,0.15);color:var(--primary-deep)">⚡</div>
-        <div class="task-summary-num" style="color:var(--primary-deep)">${focusTasks.length}</div>
-        <div class="task-summary-label">今日焦点</div>
+        <div class="task-summary-header">
+          <div class="task-summary-icon" style="background:rgba(124,92,252,0.15);color:var(--primary-deep)">⚡</div>
+          <div class="task-summary-num" style="color:var(--primary-deep)">${focusTasks.length}</div>
+          <div class="task-summary-label">今日焦点</div>
+        </div>
+        <div class="task-summary-list">${focusHtml}</div>
       </div>
       <div class="task-summary-card">
-        <div class="task-summary-icon" style="background:rgba(245,158,11,0.15);color:#d97706">📅</div>
-        <div class="task-summary-num" style="color:#d97706">${deadlineTasks.length}</div>
-        <div class="task-summary-label">Deadline</div>
+        <div class="task-summary-header">
+          <div class="task-summary-icon" style="background:rgba(245,158,11,0.15);color:#d97706">📅</div>
+          <div class="task-summary-num" style="color:#d97706">${deadlineTasks.length}</div>
+          <div class="task-summary-label">Deadline</div>
+        </div>
+        <div class="task-summary-list">${deadlineHtml}</div>
       </div>
       <div class="task-summary-card">
-        <div class="task-summary-icon" style="background:rgba(255,93,115,0.15);color:var(--danger)">⚠️</div>
-        <div class="task-summary-num" style="color:var(--danger)">${blockerTasks.length}</div>
-        <div class="task-summary-label">卡点</div>
+        <div class="task-summary-header">
+          <div class="task-summary-icon" style="background:rgba(255,93,115,0.15);color:var(--danger)">⚠️</div>
+          <div class="task-summary-num" style="color:var(--danger)">${blockerTasks.length}</div>
+          <div class="task-summary-label">卡点</div>
+        </div>
+        <div class="task-summary-list">${blockerHtml}</div>
       </div>
     </div>`;
 
