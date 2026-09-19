@@ -55,6 +55,9 @@
         <button class="nav-btn" data-view="sleep" onclick="setView('sleep')">
           <span class="nav-ico">⏰</span><span class="nav-label">睡眠闹钟</span>
         </button>
+        <button class="nav-btn" data-view="task" onclick="setView('task')">
+          <span class="nav-ico">📋</span><span class="nav-label">任务看板</span>
+        </button>
       </div>
       <div class="logout-wrap"><button class="logout-btn" onclick="logout()">↪ 退出登录</button></div>
     </nav>
@@ -73,6 +76,73 @@
   <footer class="footerbar">
     <button class="reset-btn" onclick="resetToday()">🧹 重置今日（仅清计划）</button>
   </footer>
+
+  <!-- 任务模态框 -->
+  <div class="task-modal" id="taskModal">
+    <div class="task-modal-overlay" onclick="closeTaskModal()"></div>
+    <div class="task-modal-content">
+      <div class="task-modal-header">
+        <h3 id="tmTitle">新增任务</h3>
+        <button class="task-modal-close" onclick="closeTaskModal()">✕</button>
+      </div>
+      <div class="task-modal-body">
+        <div class="task-form-group">
+          <label>任务名称 *</label>
+          <input id="tmName" placeholder="做什么？" />
+        </div>
+        <div class="task-form-row">
+          <div class="task-form-group">
+            <label>类型</label>
+            <select id="tmType">
+              <option>论文阅读</option><option>项目推进</option><option>组会准备</option><option>其他</option>
+            </select>
+          </div>
+          <div class="task-form-group">
+            <label>状态</label>
+            <select id="tmStatus">
+              <option>待开始</option><option>进行中</option><option>已完成</option>
+            </select>
+          </div>
+        </div>
+        <div class="task-form-row">
+          <div class="task-form-group">
+            <label>优先级</label>
+            <select id="tmPriority">
+              <option value="">无</option><option value="P0">P0 紧急</option><option value="P1">P1 重要</option><option value="P2">P2 普通</option>
+            </select>
+          </div>
+          <div class="task-form-group">
+            <label>截止日期</label>
+            <input id="tmDeadline" type="date" />
+          </div>
+        </div>
+        <div class="task-form-group">
+          <label>进度（0-100）</label>
+          <input id="tmProgress" type="number" min="0" max="100" value="0" />
+        </div>
+        <div class="task-form-group">
+          <label>卡点/阻塞</label>
+          <input id="tmBlocker" placeholder="有什么卡住了？（可选）" />
+        </div>
+        <div class="task-form-group">
+          <label class="task-checkbox-label">
+            <input id="tmFocus" type="checkbox" /> ⚡ 设为今日焦点
+          </label>
+        </div>
+        <div class="task-form-group">
+          <label>备注</label>
+          <textarea id="tmNote" rows="2" placeholder="补充说明（可选）"></textarea>
+        </div>
+      </div>
+      <div class="task-modal-footer">
+        <button id="tmDelete" class="btn-danger" onclick="deleteTask()" style="display:none">删除</button>
+        <div class="task-modal-footer-right">
+          <button class="btn-ghost" onclick="closeTaskModal()">取消</button>
+          <button class="btn-primary-modal" onclick="saveTask()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="toast" id="toast"></div>
 

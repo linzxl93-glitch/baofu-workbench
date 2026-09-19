@@ -20,10 +20,12 @@ let view = 'plan';
 let planDate = todayStr();
 let expMonth = monthStr();
 let expFilter = null; // 'YYYY-MM-DD' 或 null
+let taskTab = 'all';  // 任务看板当前 tab
+let taskViewMode = 'list'; // 'list' | 'kanban'
 
 /* ---------- 工具函数 ---------- */
 function blank() {
-  return { plans: {}, expenses: [], inspirations: [], exercises: [], readings: [] };
+  return { plans: {}, expenses: [], inspirations: [], exercises: [], readings: [], tasks: [] };
 }
 function load() {
   try {
@@ -70,7 +72,7 @@ function esc(s) {
 }
 
 /* ---------- 渲染调度 ---------- */
-const TITLES = { plan: '每日计划', expense: '每日花费', idea: '灵感记录', exercise: '锻炼身体', reading: '每日阅读', sleep: '睡眠闹钟' };
+const TITLES = { plan: '每日计划', expense: '每日花费', idea: '灵感记录', exercise: '锻炼身体', reading: '每日阅读', sleep: '睡眠闹钟', task: '任务看板' };
 
 function setView(v) {
   if (sleepTimer) { clearInterval(sleepTimer); sleepTimer = null; }
@@ -89,6 +91,7 @@ function render() {
   else if (view === 'exercise') el.innerHTML = renderExercise();
   else if (view === 'reading') el.innerHTML = renderReading();
   else if (view === 'sleep') el.innerHTML = renderSleep();
+  else if (view === 'task') el.innerHTML = renderTask();
 }
 
 /* ---------- 1. 每日计划 ---------- */
@@ -545,6 +548,200 @@ function requestNotify(silent) {
   } else if (!silent) {
     toast(Notification.permission === 'granted' ? '通知已开启' : '通知被拒绝，请在浏览器设置里允许');
   }
+}
+
+/* ---------- 7. 任务看板 ---------- */
+const TASK_TYPES = ['全部', '论文阅读', '项目推进', '组会准备', '其他'];
+const TASK_STATUSES = ['待开始', '进行中', '已完成'];
+const PRIORITY_COLORS = { P0: '#ff5d73', P1: '#f59e0b', P2: '#94a3b8' };
+const STATUS_COLORS = { '待开始': '#94a3b8', '进行中': '#3b82f6', '已完成': '#22c55e' };
+
+function renderTask() {
+  const tasks = state.tasks || [];
+  const today = todayStr();
+  // 今日三件事：focus 任务
+  const focusTasks = tasks.filter(t => t.focus && t.status !== '已完成');
+  // Deadline 倒计时：有 deadline 且未完成
+  const deadlineTasks = tasks.filter(t => t.deadline && t.status !== '已完成')
+    .sort((a, b) => a.deadline.localeCompare(b.deadline));
+  // 卡点提醒：有 blocker 且未完成
+  const blockerTasks = tasks.filter(t => t.blocker && t.status !== '已完成');
+
+  // Tab 过滤
+  const filtered = taskTab === 'all' ? tasks : tasks.filter(t => t.type === taskTab);
+  const counts = {};
+  TASK_TYPES.slice(1).forEach(tp => { counts[tp] = tasks.filter(t => t.type === tp).length; });
+
+  const summaryHtml = `
+    <div class="task-summary">
+      <div class="task-summary-card">
+        <div class="task-summary-icon" style="background:rgba(124,92,252,0.15);color:var(--primary-deep)">⚡</div>
+        <div class="task-summary-num" style="color:var(--primary-deep)">${focusTasks.length}</div>
+        <div class="task-summary-label">今日焦点</div>
+      </div>
+      <div class="task-summary-card">
+        <div class="task-summary-icon" style="background:rgba(245,158,11,0.15);color:#d97706">📅</div>
+        <div class="task-summary-num" style="color:#d97706">${deadlineTasks.length}</div>
+        <div class="task-summary-label">Deadline</div>
+      </div>
+      <div class="task-summary-card">
+        <div class="task-summary-icon" style="background:rgba(255,93,115,0.15);color:var(--danger)">⚠️</div>
+        <div class="task-summary-num" style="color:var(--danger)">${blockerTasks.length}</div>
+        <div class="task-summary-label">卡点</div>
+      </div>
+    </div>`;
+
+  const tabsHtml = `
+    <div class="task-tabs">
+      <button class="task-tab ${taskTab === 'all' ? 'active' : ''}" onclick="switchTaskTab('all')">全部<span class="task-tab-count">${tasks.length}</span></button>
+      ${TASK_TYPES.slice(1).map(tp => `
+        <button class="task-tab ${taskTab === tp ? 'active' : ''}" onclick="switchTaskTab('${tp}')">${tp}<span class="task-tab-count">${counts[tp]}</span></button>
+      `).join('')}
+      <button class="task-tab ${taskViewMode === 'kanban' ? 'active' : ''}" onclick="toggleTaskView()">📊 看板</button>
+    </div>`;
+
+  let contentHtml;
+  if (taskViewMode === 'kanban') {
+    contentHtml = renderKanban(filtered);
+  } else {
+    contentHtml = renderTaskList(filtered);
+  }
+
+  return `
+    <div class="card task-card-wrap">
+      <div class="card-title">📋 任务看板 <span class="card-sub">· 管理你的任务与项目</span></div>
+      ${summaryHtml}
+      ${tabsHtml}
+      ${contentHtml}
+      <button class="task-fab" onclick="openTaskModal()">＋</button>
+    </div>`;
+}
+
+function renderTaskList(tasks) {
+  if (tasks.length === 0) {
+    return '<div class="empty">还没有任务，点右下角 ＋ 添加</div>';
+  }
+  return `<div class="task-list">${tasks.map(t => renderTaskItem(t)).join('')}</div>`;
+}
+
+function renderTaskItem(t) {
+  const today = todayStr();
+  const deadlineClass = !t.deadline ? '' :
+    t.deadline < today ? 'overdue' :
+    t.deadline === today ? 'today' : 'future';
+  const daysLeft = t.deadline ? Math.ceil((new Date(t.deadline) - new Date(today)) / 86400000) : null;
+  const deadlineText = !t.deadline ? '' :
+    daysLeft < 0 ? '逾期 ' + Math.abs(daysLeft) + ' 天' :
+    daysLeft === 0 ? '今天截止' :
+    daysLeft === 1 ? '明天截止' : daysLeft + ' 天后';
+
+  return `
+    <div class="task-item ${t.focus ? 'focus' : ''}" onclick="openTaskModal('${t.id}')">
+      <div class="task-item-top">
+        <div class="task-item-name">${esc(t.name)}</div>
+        <div class="task-item-actions">
+          ${t.focus ? '<span class="task-badge focus">⚡焦点</span>' : ''}
+          ${t.priority ? `<span class="task-badge priority" style="background:${PRIORITY_COLORS[t.priority]}20;color:${PRIORITY_COLORS[t.priority]}">${t.priority}</span>` : ''}
+          <span class="task-badge status" style="background:${STATUS_COLORS[t.status]}18;color:${STATUS_COLORS[t.status]}">${t.status}</span>
+          <span class="task-badge type">${esc(t.type)}</span>
+        </div>
+      </div>
+      ${t.deadline ? `<div class="task-item-deadline ${deadlineClass}">📅 ${t.deadline.slice(5)} ${deadlineText}</div>` : ''}
+      ${t.progress > 0 ? `
+        <div class="task-progress-wrap">
+          <div class="task-progress-bar"><div class="task-progress-fill" style="width:${t.progress}%"></div></div>
+          <span class="task-progress-text">${t.progress}%</span>
+        </div>` : ''}
+      ${t.blocker ? `<div class="task-blocker">⚠️ ${esc(t.blocker)}</div>` : ''}
+    </div>`;
+}
+
+function renderKanban(tasks) {
+  const groups = { '已完成': [], '进行中': [], '待开始': [] };
+  tasks.forEach(t => { if (groups[t.status]) groups[t.status].push(t); });
+
+  return `
+    <div class="task-kanban">
+      ${TASK_STATUSES.map(s => `
+        <div class="task-kanban-col">
+          <div class="task-kanban-header" style="border-color:${STATUS_COLORS[s]}">
+            <span class="task-kanban-title" style="color:${STATUS_COLORS[s]}">${s}</span>
+            <span class="task-kanban-count">${groups[s].length}</span>
+          </div>
+          <div class="task-kanban-list">
+            ${groups[s].length === 0 ? '<div class="empty" style="padding:12px 0">暂无</div>' :
+              groups[s].map(t => `
+                <div class="task-kanban-item" onclick="openTaskModal('${t.id}')">
+                  <div class="task-kanban-name">${esc(t.name)}</div>
+                  ${t.deadline ? `<div class="task-kanban-date">${t.deadline.slice(5)}</div>` : ''}
+                </div>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function switchTaskTab(tab) {
+  if (tab === 'kanban') { taskViewMode = 'kanban'; }
+  else { taskTab = tab; taskViewMode = 'list'; }
+  render();
+}
+function toggleTaskView() {
+  taskViewMode = taskViewMode === 'kanban' ? 'list' : 'kanban';
+  render();
+}
+
+/* 任务模态框 */
+let editingTaskId = null;
+function openTaskModal(id) {
+  editingTaskId = id || null;
+  const t = id ? (state.tasks || []).find(x => x.id === id) : null;
+  const modal = document.getElementById('taskModal');
+  document.getElementById('tmTitle').textContent = t ? '编辑任务' : '新增任务';
+  document.getElementById('tmName').value = t ? t.name : '';
+  document.getElementById('tmType').value = t ? t.type : '项目推进';
+  document.getElementById('tmStatus').value = t ? t.status : '待开始';
+  document.getElementById('tmPriority').value = t ? t.priority : '';
+  document.getElementById('tmDeadline').value = t ? (t.deadline || '') : '';
+  document.getElementById('tmProgress').value = t ? t.progress : 0;
+  document.getElementById('tmBlocker').value = t ? (t.blocker || '') : '';
+  document.getElementById('tmFocus').checked = t ? t.focus : false;
+  document.getElementById('tmNote').value = t ? (t.note || '') : '';
+  document.getElementById('tmDelete').style.display = t ? '' : 'none';
+  modal.classList.add('show');
+}
+function closeTaskModal() {
+  document.getElementById('taskModal').classList.remove('show');
+  editingTaskId = null;
+}
+function saveTask() {
+  const name = document.getElementById('tmName').value.trim();
+  if (!name) { toast('请填写任务名称'); return; }
+  const data = {
+    name,
+    type: document.getElementById('tmType').value,
+    status: document.getElementById('tmStatus').value,
+    priority: document.getElementById('tmPriority').value,
+    deadline: document.getElementById('tmDeadline').value || null,
+    progress: parseInt(document.getElementById('tmProgress').value, 10) || 0,
+    blocker: document.getElementById('tmBlocker').value.trim() || null,
+    focus: document.getElementById('tmFocus').checked,
+    note: document.getElementById('tmNote').value.trim(),
+  };
+  if (editingTaskId) {
+    const t = state.tasks.find(x => x.id === editingTaskId);
+    if (t) Object.assign(t, data, { updatedAt: Date.now() });
+  } else {
+    state.tasks.push({ id: uid(), ...data, createdAt: Date.now(), updatedAt: Date.now() });
+  }
+  save(); closeTaskModal(); render();
+  toast(editingTaskId ? '任务已更新' : '任务已添加');
+}
+function deleteTask() {
+  if (!editingTaskId) return;
+  if (!confirm('确定删除这个任务吗？')) return;
+  state.tasks = state.tasks.filter(x => x.id !== editingTaskId);
+  save(); closeTaskModal(); render();
+  toast('任务已删除');
 }
 
 /* ---------- 底部：重置今日 ---------- */
