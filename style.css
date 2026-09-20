@@ -768,3 +768,23 @@ li.item.done .title { text-decoration: line-through; color: var(--ink-soft); }
   margin-top: 10px; font-size: 11px; color: var(--ink-soft);
 }
 .cal-legend-item { display: flex; align-items: center; gap: 5px; }
+
+/* ===== 移动端任务看板适配 ===== */
+@media (max-width: 480px) {
+  .task-summary { grid-template-columns: 1fr; gap: 8px; }
+  .task-summary-card { padding: 12px; text-align: left; display: flex; align-items: center; gap: 12px; }
+  .task-summary-header { flex-direction: row; gap: 10px; margin-bottom: 0; }
+  .task-summary-icon { margin-bottom: 0; }
+  .task-summary-list { border-top: none; padding-top: 0; flex: 1; }
+  .task-goal-row { flex-wrap: wrap; gap: 8px; }
+  .task-goal-bar { width: 100%; order: 10; }
+  .task-goal-name { font-size: 13px; }
+  .task-goal-meta { font-size: 10px; }
+  .task-tabs { gap: 4px; padding-bottom: 8px; }
+  .task-tab { padding: 6px 10px; font-size: 11px; }
+  .task-badge { font-size: 9px; padding: 1px 5px; }
+  .task-item { padding: 12px; }
+  .task-item-name { font-size: 13px; }
+  .goal-banner { padding: 10px 12px; gap: 8px; }
+  .goal-banner-text { font-size: 13px; }
+}
