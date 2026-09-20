@@ -74,7 +74,7 @@ function esc(s) {
 }
 
 /* ---------- 渲染调度 ---------- */
-const TITLES = { plan: '每日计划', expense: '每日花费', idea: '灵感记录', exercise: '锻炼身体', reading: '每日阅读', sleep: '睡眠闹钟', task: '任务看板', goal: '目标打卡' };
+const TITLES = { plan: '每日计划', expense: '每日花费', idea: '灵感记录', exercise: '锻炼身体', reading: '每日阅读', sleep: '睡眠闹钟', task: '任务看板' };
 
 function setView(v) {
   if (sleepTimer) { clearInterval(sleepTimer); sleepTimer = null; }
@@ -94,7 +94,6 @@ function render() {
   else if (view === 'reading') el.innerHTML = renderReading();
   else if (view === 'sleep') el.innerHTML = renderSleep();
   else if (view === 'task') el.innerHTML = renderTask();
-  else if (view === 'goal') el.innerHTML = renderGoal();
 }
 
 /* ---------- 1. 每日计划 ---------- */
@@ -647,6 +646,36 @@ function renderTask() {
       </div>
     </div>`;
 
+  // 目标区域
+  const goals = state.goals || [];
+  const hasCheckin = goals.some(g => todayGoalAmount(g) > 0);
+  const bannerHtml = !hasCheckin && goals.length > 0 ? `
+    <div class="goal-banner">
+      <span class="goal-banner-icon">🔥</span>
+      <span class="goal-banner-text">${shangjinWord()}</span>
+      <span class="goal-banner-sub">${hoursLeftToday()}</span>
+    </div>` : '';
+
+  const goalsHtml = goals.length > 0 ? `
+    <div class="task-goals">
+      <div class="task-goals-title">🎯 目标进度 <button class="btn ghost xs" onclick="openGoalModal()">＋ 新目标</button></div>
+      ${goals.map(g => {
+        const streak = calcStreak(g.records || []);
+        const todayAmt = todayGoalAmount(g);
+        const pct = goalProgress(g);
+        return `
+          <div class="task-goal-row">
+            <div class="task-goal-color" style="background:${g.color}"></div>
+            <div class="task-goal-info">
+              <div class="task-goal-name">${esc(g.name)}</div>
+              <div class="task-goal-meta">${(g.records||[]).reduce((s,r)=>s+(r.amount||0),0)}/${g.target} ${esc(g.unit)} · 🔥${streak}天</div>
+            </div>
+            <div class="task-goal-bar"><div class="task-goal-fill" style="width:${pct}%;background:${g.color}"></div></div>
+            <button class="btn primary xs" onclick="checkinGoal('${g.id}')">${todayAmt > 0 ? '✅ ' + todayAmt : '打卡'}</button>
+          </div>`;
+      }).join('')}
+    </div>` : '';
+
   const tabsHtml = `
     <div class="task-tabs">
       <button class="task-tab ${taskTab === 'all' && taskViewMode === 'list' ? 'active' : ''}" onclick="switchTaskTab('all')">全部<span class="task-tab-count">${tasks.length}</span></button>
@@ -668,8 +697,10 @@ function renderTask() {
 
   return `
     <div class="card task-card-wrap">
-      <div class="card-title">📋 任务看板 <span class="card-sub">· 管理你的任务与项目</span></div>
+      <div class="card-title">🎯 任务看板 <span class="card-sub">· 管理任务与目标</span></div>
+      ${bannerHtml}
       ${summaryHtml}
+      ${goalsHtml}
       ${tabsHtml}
       ${contentHtml}
       <button class="task-fab" onclick="openTaskModal()">＋</button>
