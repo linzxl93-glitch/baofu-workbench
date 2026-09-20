@@ -465,6 +465,44 @@ li.item.done .title { text-decoration: line-through; color: var(--ink-soft); }
   .nav-btn .nav-label { font-size: 10px; }
 }
 
+/* ===== 首页仪表盘 ===== */
+.home-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.home-greeting { font-size: 20px; font-weight: 800; color: var(--ink); }
+.home-date { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+.home-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.home-stat {
+  background: #faf8ff; border: 1px solid #efeafc; border-radius: 14px;
+  padding: 14px 10px; text-align: center; cursor: pointer;
+  transition: all 0.15s ease;
+}
+.home-stat:active { transform: scale(0.96); }
+.home-stat-ring { position: relative; width: 56px; height: 56px; margin: 0 auto 6px; }
+.home-stat-ring svg { transform: rotate(-90deg); }
+.home-stat-pct {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 900; color: var(--primary-deep);
+}
+.home-stat-num { font-size: 28px; font-weight: 900; line-height: 1.1; margin-bottom: 4px; }
+.home-stat-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.home-stat-sub { font-size: 10px; color: var(--ink-soft); margin-top: 2px; }
+.home-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+.home-action-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 12px 6px; border: 1.5px solid #e7e2f7; background: #fff;
+  border-radius: 12px; cursor: pointer; font-size: 12px; font-weight: 700;
+  color: var(--ink); transition: all 0.15s ease; font-family: inherit;
+}
+.home-action-btn span { font-size: 20px; }
+.home-action-btn:active { transform: scale(0.95); background: #faf8ff; }
+.home-footer { display: flex; gap: 8px; justify-content: center; padding-top: 8px; border-top: 1px solid #efeafc; }
+
+/* 移动端首页适配 */
+@media (max-width: 480px) {
+  .home-grid { grid-template-columns: repeat(2, 1fr); }
+  .home-actions { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* ===== 任务看板模块 ===== */
 .task-card-wrap { position: relative; padding-bottom: 70px; }
 .task-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
