@@ -657,3 +657,96 @@ li.item.done .title { text-decoration: line-through; color: var(--ink-soft); }
   .task-kanban { grid-template-columns: 1fr; }
   .task-kanban-col { min-height: auto; }
 }
+
+/* ===== 目标打卡模块 ===== */
+.goal-banner {
+  background: linear-gradient(135deg, #FFF7ED, #FEF3C7);
+  border: 1px solid #FDE68A;
+  border-radius: 14px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.8; } }
+.goal-banner-icon { font-size: 22px; }
+.goal-banner-text { font-size: 14px; font-weight: 800; color: #92400E; flex: 1; }
+.goal-banner-sub { font-size: 11px; color: #B45309; white-space: nowrap; }
+
+.goal-rewards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.goal-reward {
+  display: flex; align-items: center; gap: 12px;
+  border: 1.5px solid #e7e2f7; border-radius: 12px;
+  padding: 10px 12px; transition: all 0.2s;
+}
+.goal-reward.unlocked { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.goal-reward-icon { font-size: 24px; flex-shrink: 0; }
+.goal-reward-info { flex: 1; min-width: 0; }
+.goal-reward-label { font-size: 13px; font-weight: 800; }
+.goal-reward-bar { height: 5px; background: #e7e2f7; border-radius: 3px; margin: 4px 0; overflow: hidden; }
+.goal-reward-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+.goal-reward-text { font-size: 11px; color: var(--ink-soft); font-weight: 600; }
+
+.goal-list { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.goal-card {
+  background: #faf8ff; border: 1px solid #efeafc; border-radius: 16px;
+  padding: 16px; position: relative;
+}
+.goal-card-top { display: flex; align-items: center; gap: 12px; }
+.goal-card-color { width: 6px; height: 40px; border-radius: 3px; flex-shrink: 0; }
+.goal-card-info { flex: 1; min-width: 0; }
+.goal-card-name { font-size: 15px; font-weight: 800; color: var(--ink); }
+.goal-card-meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.goal-card-ring { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
+.goal-card-ring svg { transform: rotate(0); }
+.goal-ring-text {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 900; color: var(--ink);
+}
+.goal-card-streak { font-size: 12px; font-weight: 700; color: #d97706; margin: 8px 0; }
+.goal-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.goal-card-today {
+  margin-top: 8px; padding: 6px 10px;
+  background: rgba(43,212,164,0.1); border: 1px solid rgba(43,212,164,0.2);
+  border-radius: 8px; font-size: 12px; font-weight: 700; color: var(--ok);
+}
+
+/* 目标颜色选择器 */
+.goal-color-picker { display: flex; gap: 8px; margin-top: 4px; }
+.goal-color-opt {
+  width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  border: 2.5px solid transparent; transition: all 0.15s;
+}
+.goal-color-opt:active { transform: scale(0.9); }
+.goal-color-opt.selected { border-color: var(--ink); box-shadow: 0 0 0 2px #fff; }
+
+/* ===== 日历视图 ===== */
+.cal-switcher { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+}
+.cal-header {
+  text-align: center; font-size: 11px; font-weight: 700;
+  color: var(--ink-soft); padding: 6px 0;
+}
+.cal-cell {
+  aspect-ratio: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+  border-radius: 10px; font-size: 13px; font-weight: 600;
+  color: var(--ink); background: #faf8ff; border: 1px solid #efeafc;
+  transition: all 0.15s;
+}
+.cal-cell.empty { background: transparent; border-color: transparent; }
+.cal-cell.today { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 800; }
+.cal-day { font-size: 13px; }
+.cal-dot { width: 5px; height: 5px; border-radius: 50%; }
+.cal-dot.task { background: #3b82f6; }
+.cal-dot.goal { background: var(--ok); }
+.cal-legend {
+  display: flex; gap: 16px; justify-content: center;
+  margin-top: 10px; font-size: 11px; color: var(--ink-soft);
+}
+.cal-legend-item { display: flex; align-items: center; gap: 5px; }

@@ -58,6 +58,9 @@
         <button class="nav-btn" data-view="task" onclick="setView('task')">
           <span class="nav-ico">📋</span><span class="nav-label">任务看板</span>
         </button>
+        <button class="nav-btn" data-view="goal" onclick="setView('goal')">
+          <span class="nav-ico">🎯</span><span class="nav-label">目标打卡</span>
+        </button>
       </div>
       <div class="logout-wrap"><button class="logout-btn" onclick="logout()">↪ 退出登录</button></div>
     </nav>
@@ -76,6 +79,52 @@
   <footer class="footerbar">
     <button class="reset-btn" onclick="resetToday()">🧹 重置今日（仅清计划）</button>
   </footer>
+
+  <!-- 目标模态框 -->
+  <div class="task-modal" id="goalModal">
+    <div class="task-modal-overlay" onclick="closeGoalModal()"></div>
+    <div class="task-modal-content">
+      <div class="task-modal-header">
+        <h3 id="gmTitle">新增目标</h3>
+        <button class="task-modal-close" onclick="closeGoalModal()">✕</button>
+      </div>
+      <div class="task-modal-body">
+        <div class="task-form-group">
+          <label>目标名称 *</label>
+          <input id="gmName" placeholder="比如：读30本书、跑100公里" />
+        </div>
+        <div class="task-form-row">
+          <div class="task-form-group">
+            <label>目标量 *</label>
+            <input id="gmTarget" type="number" min="1" placeholder="30" />
+          </div>
+          <div class="task-form-group">
+            <label>单位</label>
+            <input id="gmUnit" placeholder="本/公里/小时/次" value="本" />
+          </div>
+        </div>
+        <div class="task-form-group">
+          <label>颜色</label>
+          <div class="goal-color-picker" id="gmColorPicker">
+            <span class="goal-color-opt selected" data-c="#7C3AED" style="background:#7C3AED" onclick="pickGoalColor(this)"></span>
+            <span class="goal-color-opt" data-c="#0D9488" style="background:#0D9488" onclick="pickGoalColor(this)"></span>
+            <span class="goal-color-opt" data-c="#EA580C" style="background:#EA580C" onclick="pickGoalColor(this)"></span>
+            <span class="goal-color-opt" data-c="#2563EB" style="background:#2563EB" onclick="pickGoalColor(this)"></span>
+            <span class="goal-color-opt" data-c="#DB2777" style="background:#DB2777" onclick="pickGoalColor(this)"></span>
+            <span class="goal-color-opt" data-c="#059669" style="background:#059669" onclick="pickGoalColor(this)"></span>
+          </div>
+          <input type="hidden" id="gmColor" value="#7C3AED" />
+        </div>
+      </div>
+      <div class="task-modal-footer">
+        <button id="gmDelete" class="btn-danger" onclick="deleteGoal(editingGoalId)" style="display:none">删除</button>
+        <div class="task-modal-footer-right">
+          <button class="btn-ghost" onclick="closeGoalModal()">取消</button>
+          <button class="btn-primary-modal" onclick="saveGoal()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- 任务模态框 -->
   <div class="task-modal" id="taskModal">

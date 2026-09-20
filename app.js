@@ -23,10 +23,11 @@ let expMonth = monthStr();
 let expFilter = null; // 'YYYY-MM-DD' 或 null
 let taskTab = 'all';  // 任务看板当前 tab
 let taskViewMode = 'list'; // 'list' | 'kanban'
+let goalCalMonth = monthStr(); // 目标日历月份
 
 /* ---------- 工具函数 ---------- */
 function blank() {
-  return { plans: {}, expenses: [], inspirations: [], exercises: [], readings: [], tasks: [], taskTypes: [...DEFAULT_TASK_TYPES] };
+  return { plans: {}, expenses: [], inspirations: [], exercises: [], readings: [], tasks: [], taskTypes: [...DEFAULT_TASK_TYPES], goals: [] };
 }
 function load() {
   try {
@@ -73,7 +74,7 @@ function esc(s) {
 }
 
 /* ---------- 渲染调度 ---------- */
-const TITLES = { plan: '每日计划', expense: '每日花费', idea: '灵感记录', exercise: '锻炼身体', reading: '每日阅读', sleep: '睡眠闹钟', task: '任务看板' };
+const TITLES = { plan: '每日计划', expense: '每日花费', idea: '灵感记录', exercise: '锻炼身体', reading: '每日阅读', sleep: '睡眠闹钟', task: '任务看板', goal: '目标打卡' };
 
 function setView(v) {
   if (sleepTimer) { clearInterval(sleepTimer); sleepTimer = null; }
@@ -93,6 +94,7 @@ function render() {
   else if (view === 'reading') el.innerHTML = renderReading();
   else if (view === 'sleep') el.innerHTML = renderSleep();
   else if (view === 'task') el.innerHTML = renderTask();
+  else if (view === 'goal') el.innerHTML = renderGoal();
 }
 
 /* ---------- 1. 每日计划 ---------- */
@@ -647,16 +649,19 @@ function renderTask() {
 
   const tabsHtml = `
     <div class="task-tabs">
-      <button class="task-tab ${taskTab === 'all' ? 'active' : ''}" onclick="switchTaskTab('all')">全部<span class="task-tab-count">${tasks.length}</span></button>
+      <button class="task-tab ${taskTab === 'all' && taskViewMode === 'list' ? 'active' : ''}" onclick="switchTaskTab('all')">全部<span class="task-tab-count">${tasks.length}</span></button>
       ${types.map(tp => `
-        <button class="task-tab ${taskTab === tp ? 'active' : ''}" onclick="switchTaskTab('${esc(tp)}')">${esc(tp)}<span class="task-tab-count">${counts[tp] || 0}</span></button>
+        <button class="task-tab ${taskTab === tp && taskViewMode === 'list' ? 'active' : ''}" onclick="switchTaskTab('${esc(tp)}')">${esc(tp)}<span class="task-tab-count">${counts[tp] || 0}</span></button>
       `).join('')}
-      <button class="task-tab ${taskViewMode === 'kanban' ? 'active' : ''}" onclick="toggleTaskView()">📊 看板</button>
+      <button class="task-tab ${taskViewMode === 'kanban' ? 'active' : ''}" onclick="switchTaskTab('kanban')">📊 看板</button>
+      <button class="task-tab ${taskViewMode === 'calendar' ? 'active' : ''}" onclick="switchTaskTab('calendar')">📅 日历</button>
     </div>`;
 
   let contentHtml;
   if (taskViewMode === 'kanban') {
     contentHtml = renderKanban(filtered);
+  } else if (taskViewMode === 'calendar') {
+    contentHtml = renderCalendarView();
   } else {
     contentHtml = renderTaskList(filtered);
   }
@@ -851,6 +856,268 @@ function refreshTypeSelect() {
   const cur = sel.value;
   sel.innerHTML = types.map(t => `<option ${t === cur ? 'selected' : ''}>${esc(t)}</option>`).join('');
 }
+
+/* ---------- 8. 目标打卡 ---------- */
+const GOAL_COLORS = ['#7C3AED', '#0D9488', '#EA580C', '#2563EB', '#DB2777', '#059669', '#92400E', '#4F46E5'];
+const REWARDS = [
+  { days: 7, icon: '🍽️', label: '大餐一顿', color: '#EA580C', bg: '#FFF7ED' },
+  { days: 30, icon: '🚄', label: '国内旅游', color: '#0E7490', bg: '#ECFEFF' },
+  { days: 180, icon: '✈️', label: '出国旅行', color: '#7C3AED', bg: '#F5F3FF' },
+];
+
+function calcStreak(records) {
+  if (!records || records.length === 0) return 0;
+  const dates = [...new Set(records.map(r => r.date))].sort().reverse();
+  const today = todayStr();
+  let streak = 0;
+  let checkDate = today;
+  for (let i = 0; i < 400; i++) {
+    if (dates.includes(checkDate)) {
+      streak++;
+      checkDate = addDays(checkDate, -1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+function todayGoalAmount(goal) {
+  const today = todayStr();
+  return (goal.records || []).filter(r => r.date === today).reduce((s, r) => s + (r.amount || 0), 0);
+}
+function goalProgress(goal) {
+  const total = goal.target || 1;
+  const done = (goal.records || []).reduce((s, r) => s + (r.amount || 0), 0);
+  return Math.min(100, Math.round(done / total * 100));
+}
+
+function renderGoal() {
+  const goals = state.goals || [];
+  const today = todayStr();
+
+  // 求上进横幅
+  const hasCheckin = goals.some(g => todayGoalAmount(g) > 0);
+  const bannerHtml = !hasCheckin && goals.length > 0 ? `
+    <div class="goal-banner">
+      <span class="goal-banner-icon">🔥</span>
+      <span class="goal-banner-text">${shangjinWord()}</span>
+      <span class="goal-banner-sub">${hoursLeftToday()}</span>
+    </div>` : '';
+
+  // 奖励进度
+  const maxStreak = goals.length > 0 ? Math.max(...goals.map(g => calcStreak(g.records || []))) : 0;
+  const rewardsHtml = REWARDS.map(r => {
+    const pct = Math.min(100, Math.round(maxStreak / r.days * 100));
+    const unlocked = maxStreak >= r.days;
+    return `
+      <div class="goal-reward ${unlocked ? 'unlocked' : ''}" style="background:${r.bg};border-color:${unlocked ? r.color : '#e7e2f7'}">
+        <div class="goal-reward-icon">${r.icon}</div>
+        <div class="goal-reward-info">
+          <div class="goal-reward-label" style="color:${r.color}">${r.label}</div>
+          <div class="goal-reward-bar"><div class="goal-reward-fill" style="width:${pct}%;background:${r.color}"></div></div>
+          <div class="goal-reward-text">${unlocked ? '✅ 已解锁' : `还差 ${r.days - maxStreak} 天`}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // 目标列表
+  const goalsHtml = goals.length === 0
+    ? '<div class="empty">还没有目标，点右下角 ＋ 添加</div>'
+    : goals.map(g => {
+      const streak = calcStreak(g.records || []);
+      const todayAmt = todayGoalAmount(g);
+      const pct = goalProgress(g);
+      const circ = 2 * Math.PI * 28;
+      const offset = circ * (1 - pct / 100);
+      return `
+        <div class="goal-card">
+          <div class="goal-card-top">
+            <div class="goal-card-color" style="background:${g.color}"></div>
+            <div class="goal-card-info">
+              <div class="goal-card-name">${esc(g.name)}</div>
+              <div class="goal-card-meta">目标 ${g.target} ${esc(g.unit)} · 已完成 ${(g.records||[]).reduce((s,r)=>s+(r.amount||0),0)} ${esc(g.unit)}</div>
+            </div>
+            <div class="goal-card-ring">
+              <svg width="64" height="64" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="28" fill="none" stroke="#efeafc" stroke-width="6"/>
+                <circle cx="32" cy="32" r="28" fill="none" stroke="${g.color}" stroke-width="6" stroke-linecap="round"
+                  stroke-dasharray="${circ}" stroke-dashoffset="${offset}" transform="rotate(-90 32 32)"/>
+              </svg>
+              <div class="goal-ring-text">${pct}%</div>
+            </div>
+          </div>
+          <div class="goal-card-streak">🔥 连续 ${streak} 天</div>
+          <div class="goal-card-actions">
+            <button class="btn primary sm" onclick="checkinGoal('${g.id}')">✅ 今日打卡</button>
+            <button class="btn ghost sm" onclick="openGoalModal('${g.id}')">✏️ 编辑</button>
+            <button class="btn ghost sm" onclick="deleteGoal('${g.id}')" style="color:var(--danger)">🗑</button>
+          </div>
+          ${todayAmt > 0 ? `<div class="goal-card-today">今日已打卡：${todayAmt} ${esc(g.unit)}</div>` : ''}
+        </div>`;
+    }).join('');
+
+  return `
+    ${bannerHtml}
+    <div class="card">
+      <div class="card-title">🎯 目标打卡 <span class="card-sub">· 设定目标，每日打卡，奖励自己</span></div>
+      ${goals.length > 0 && rewardsHtml ? `<div class="goal-rewards">${rewardsHtml}</div>` : ''}
+      <div class="goal-list">${goalsHtml}</div>
+      <button class="task-fab" onclick="openGoalModal()">＋</button>
+    </div>`;
+}
+
+function shangjinWord() {
+  const words = ['求求你上进吧！', '不能摆烂！', '进击吧，少年！', '你是要躺还是要起飞？', '潜力股！动起来动起来', '看你这么累，歇一下……不行，继续！'];
+  return words[Math.floor(Math.random() * words.length)];
+}
+function hoursLeftToday() {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const diff = end - now;
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  return h > 0 ? `还有 ${h} 小时 ${m} 分就到 24:00` : `还有 ${m} 分钟就到 24:00`;
+}
+
+/* 目标模态框 */
+let editingGoalId = null;
+function openGoalModal(id) {
+  editingGoalId = id || null;
+  const g = id ? (state.goals || []).find(x => x.id === id) : null;
+  const modal = document.getElementById('goalModal');
+  document.getElementById('gmTitle').textContent = g ? '编辑目标' : '新增目标';
+  document.getElementById('gmName').value = g ? g.name : '';
+  document.getElementById('gmTarget').value = g ? g.target : '';
+  document.getElementById('gmUnit').value = g ? g.unit : '本';
+  document.getElementById('gmColor').value = g ? g.color : GOAL_COLORS[0];
+  document.getElementById('gmDelete').style.display = g ? '' : 'none';
+  modal.classList.add('show');
+}
+function closeGoalModal() {
+  document.getElementById('goalModal').classList.remove('show');
+  editingGoalId = null;
+}
+function pickGoalColor(el) {
+  document.querySelectorAll('.goal-color-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('gmColor').value = el.dataset.c;
+}
+function saveGoal() {
+  const name = document.getElementById('gmName').value.trim();
+  const target = parseInt(document.getElementById('gmTarget').value, 10);
+  if (!name) { toast('请填写目标名称'); return; }
+  if (!(target > 0)) { toast('请填写有效目标量'); return; }
+  const unit = document.getElementById('gmUnit').value.trim() || '次';
+  const color = document.getElementById('gmColor').value;
+  if (editingGoalId) {
+    const g = state.goals.find(x => x.id === editingGoalId);
+    if (g) Object.assign(g, { name, target, unit, color });
+  } else {
+    state.goals.push({ id: uid(), name, target, unit, color, createdAt: todayStr(), records: [] });
+  }
+  save(); closeGoalModal(); render();
+  toast(editingGoalId ? '目标已更新' : '目标已添加');
+}
+function deleteGoal(id) {
+  if (!confirm('确定删除这个目标吗？打卡记录也会一起删除。')) return;
+  state.goals = state.goals.filter(x => x.id !== id);
+  save(); render();
+  toast('目标已删除');
+}
+function checkinGoal(id) {
+  const g = (state.goals || []).find(x => x.id === id);
+  if (!g) return;
+  const amt = prompt(`打卡「${g.name}」\n输入今日完成量（单位：${g.unit}）`, '1');
+  if (amt === null) return;
+  const amount = parseFloat(amt);
+  if (!(amount > 0)) { toast('请输入有效数量'); return; }
+  if (!g.records) g.records = [];
+  g.records.push({ date: todayStr(), amount });
+  save(); render();
+  toast(`已打卡 ${amount} ${g.unit}！`);
+}
+
+/* ---------- 日历视图（任务看板 tab）---------- */
+function renderCalendarView() {
+  const [y, m] = goalCalMonth.split('-').map(Number);
+  const firstDay = new Date(y, m - 1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const today = todayStr();
+  const tasks = state.tasks || [];
+  const goals = state.goals || [];
+
+  // 收集本月有任务/打卡的日期
+  const taskDates = {};
+  tasks.forEach(t => {
+    if (t.deadline && t.deadline.startsWith(goalCalMonth)) {
+      const d = t.deadline.slice(8, 10);
+      if (!taskDates[d]) taskDates[d] = { tasks: 0, goals: 0 };
+      taskDates[d].tasks++;
+    }
+  });
+  const goalDates = {};
+  goals.forEach(g => {
+    (g.records || []).forEach(r => {
+      if (r.date.startsWith(goalCalMonth)) {
+        const d = r.date.slice(8, 10);
+        if (!goalDates[d]) goalDates[d] = 0;
+        goalDates[d]++;
+      }
+    });
+  });
+
+  const weeks = ['日', '一', '二', '三', '四', '五', '六'];
+  let cells = '';
+  // 空白填充
+  for (let i = 0; i < firstDay; i++) cells += '<div class="cal-cell empty"></div>';
+  // 日期格子
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = String(d).padStart(2, '0');
+    const dateStr = goalCalMonth + '-' + ds;
+    const isToday = dateStr === today;
+    const hasTask = taskDates[ds];
+    const goalCount = goalDates[ds] || 0;
+    cells += `
+      <div class="cal-cell ${isToday ? 'today' : ''}">
+        <div class="cal-day">${d}</div>
+        ${hasTask ? `<div class="cal-dot task" title="${hasTask.tasks} 个任务截止"></div>` : ''}
+        ${goalCount > 0 ? `<div class="cal-dot goal" title="${goalCount} 次打卡"></div>` : ''}
+      </div>`;
+  }
+
+  return `
+    <div class="card">
+      <div class="card-title">📅 日历视图</div>
+      <div class="cal-switcher">
+        <button class="arrow-btn" onclick="prevCalMonth()">‹</button>
+        <div class="switch-label">${goalCalMonth}<small>月</small></div>
+        <button class="arrow-btn" onclick="nextCalMonth()">›</button>
+        <button class="today-btn" onclick="goCalMonth()">本月</button>
+      </div>
+      <div class="cal-grid">
+        ${weeks.map(w => `<div class="cal-header">${w}</div>`).join('')}
+        ${cells}
+      </div>
+      <div class="cal-legend">
+        <span class="cal-legend-item"><span class="cal-dot task"></span> 任务截止</span>
+        <span class="cal-legend-item"><span class="cal-dot goal"></span> 目标打卡</span>
+      </div>
+    </div>`;
+}
+function prevCalMonth() { goalCalMonth = shiftMonth(goalCalMonth, -1); render(); }
+function nextCalMonth() { goalCalMonth = shiftMonth(goalCalMonth, 1); render(); }
+function goCalMonth() { goalCalMonth = monthStr(); render(); }
+
+/* 修改任务看板以支持日历 tab */
+const _origSwitchTaskTab = switchTaskTab;
+switchTaskTab = function(tab) {
+  if (tab === 'calendar') { taskViewMode = 'calendar'; }
+  else if (tab === 'kanban') { taskViewMode = 'kanban'; }
+  else { taskTab = tab; taskViewMode = 'list'; }
+  render();
+};
+const _origToggleTaskView = toggleTaskView;
+toggleTaskView = function() { taskViewMode = taskViewMode === 'kanban' ? 'list' : 'kanban'; render(); };
 
 /* ---------- 底部：重置今日 ---------- */
 function resetToday() {
