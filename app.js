@@ -17,7 +17,7 @@ const DEFAULT_TASK_TYPES = ['论文阅读', '项目推进', '组会准备', '其
 
 /* ---------- 状态 ---------- */
 let state = load();
-let view = 'plan';
+let view = 'home';
 let planDate = todayStr();
 let expMonth = monthStr();
 let expFilter = null; // 'YYYY-MM-DD' 或 null
@@ -74,7 +74,7 @@ function esc(s) {
 }
 
 /* ---------- 渲染调度 ---------- */
-const TITLES = { plan: '每日计划', expense: '每日花费', idea: '灵感记录', exercise: '锻炼身体', reading: '每日阅读', sleep: '睡眠闹钟', task: '任务看板' };
+const TITLES = { home: '今日概览', plan: '每日计划', expense: '每日花费', idea: '灵感记录', exercise: '锻炼身体', reading: '每日阅读', sleep: '睡眠闹钟', task: '任务看板' };
 
 function setView(v) {
   if (sleepTimer) { clearInterval(sleepTimer); sleepTimer = null; }
@@ -87,13 +87,180 @@ function setView(v) {
 }
 function render() {
   const el = document.getElementById('view');
-  if (view === 'plan') el.innerHTML = renderPlan();
+  if (view === 'home') el.innerHTML = renderHome();
+  else if (view === 'plan') el.innerHTML = renderPlan();
   else if (view === 'expense') el.innerHTML = renderExpense();
   else if (view === 'idea') el.innerHTML = renderIdea();
   else if (view === 'exercise') el.innerHTML = renderExercise();
   else if (view === 'reading') el.innerHTML = renderReading();
   else if (view === 'sleep') el.innerHTML = renderSleep();
   else if (view === 'task') el.innerHTML = renderTask();
+}
+
+/* ---------- 0. 首页仪表盘 ---------- */
+function renderHome() {
+  const today = todayStr();
+  const now = new Date();
+  const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][now.getDay()];
+
+  // 今日计划
+  const plans = state.plans[today] || [];
+  const plansDone = plans.filter(p => p.done).length;
+  const plansPct = plans.length ? Math.round(plansDone / plans.length * 100) : 0;
+
+  // 今日花费
+  const todayExp = (state.expenses || []).filter(e => e.date === today);
+  const todayExpTotal = todayExp.reduce((s, e) => s + e.amount, 0);
+
+  // 今日任务
+  const tasks = (state.tasks || []).filter(t => t.status !== '已完成');
+  const focusTasks = tasks.filter(t => t.focus);
+  const deadlines = tasks.filter(t => t.deadline && t.deadline <= today);
+
+  // 目标打卡
+  const goals = state.goals || [];
+  const goalsChecked = goals.filter(g => todayGoalAmount(g) > 0).length;
+
+  // 今日锻炼
+  const exercises = (state.exercises || []).filter(e => {
+    const d = new Date(e.ts);
+    return d.toISOString().slice(0, 10) === today;
+  });
+
+  // 今日阅读
+  const readings = (state.readings || []).filter(r => {
+    const d = new Date(r.ts);
+    return d.toISOString().slice(0, 10) === today;
+  });
+
+  // 求上进
+  const allChecked = goals.length > 0 && goalsChecked === goals.length;
+  const bannerHtml = goals.length > 0 && !allChecked ? `
+    <div class="goal-banner">
+      <span class="goal-banner-icon">🔥</span>
+      <span class="goal-banner-text">${shangjinWord()}</span>
+    </div>` : '';
+
+  return `
+    ${bannerHtml}
+    <div class="card">
+      <div class="home-header">
+        <div>
+          <div class="home-greeting">👋 ${getGreeting()}</div>
+          <div class="home-date">${now.getMonth() + 1}月${now.getDate()}日 ${weekday}</div>
+        </div>
+      </div>
+
+      <div class="home-grid">
+        <div class="home-stat" onclick="setView('plan')">
+          <div class="home-stat-ring">
+            <svg width="56" height="56" viewBox="0 0 56 56">
+              <circle cx="28" cy="28" r="24" fill="none" stroke="#efeafc" stroke-width="5"/>
+              <circle cx="28" cy="28" r="28" fill="none" stroke="var(--primary)" stroke-width="5" stroke-linecap="round"
+                stroke-dasharray="${2*Math.PI*24}" stroke-dashoffset="${2*Math.PI*24*(1-plansPct/100)}" transform="rotate(-90 28 28)"/>
+            </svg>
+            <div class="home-stat-pct">${plansPct}%</div>
+          </div>
+          <div class="home-stat-label">今日计划</div>
+          <div class="home-stat-sub">${plansDone}/${plans.length} 完成</div>
+        </div>
+
+        <div class="home-stat" onclick="setView('task')">
+          <div class="home-stat-num" style="color:var(--primary-deep)">${tasks.length}</div>
+          <div class="home-stat-label">待办任务</div>
+          <div class="home-stat-sub">${focusTasks.length} 个焦点 · ${deadlines.length} 个到期</div>
+        </div>
+
+        <div class="home-stat" onclick="setView('task')">
+          <div class="home-stat-num" style="color:#d97706">${goalsChecked}/${goals.length}</div>
+          <div class="home-stat-label">目标打卡</div>
+          <div class="home-stat-sub">${goals.length > 0 ? (allChecked ? '✅ 全部完成' : '还有未打卡') : '暂无目标'}</div>
+        </div>
+
+        <div class="home-stat" onclick="setView('expense')">
+          <div class="home-stat-num" style="color:var(--danger)">¥${todayExpTotal.toFixed(0)}</div>
+          <div class="home-stat-label">今日花费</div>
+          <div class="home-stat-sub">${todayExp.length} 笔记录</div>
+        </div>
+
+        <div class="home-stat" onclick="setView('exercise')">
+          <div class="home-stat-num" style="color:var(--ok)">${exercises.length}</div>
+          <div class="home-stat-label">今日锻炼</div>
+          <div class="home-stat-sub">${exercises.reduce((s, e) => s + (e.duration || 0), 0)} 分钟</div>
+        </div>
+
+        <div class="home-stat" onclick="setView('reading')">
+          <div class="home-stat-num" style="color:#7C3AED">${readings.length}</div>
+          <div class="home-stat-label">今日阅读</div>
+          <div class="home-stat-sub">${readings.reduce((s, e) => s + (e.pages || 0), 0)} 页</div>
+        </div>
+      </div>
+
+      <div class="home-actions">
+        <button class="home-action-btn" onclick="setView('plan')"><span>📋</span>写计划</button>
+        <button class="home-action-btn" onclick="setView('expense')"><span>💰</span>记花费</button>
+        <button class="home-action-btn" onclick="setView('idea')"><span>💡</span>记灵感</button>
+        <button class="home-action-btn" onclick="setView('task')"><span>🎯</span>看任务</button>
+      </div>
+
+      <div class="home-footer">
+        <button class="btn ghost sm" onclick="exportData()">💾 导出数据</button>
+        <button class="btn ghost sm" onclick="importData()">📂 导入数据</button>
+      </div>
+    </div>`;
+}
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 6) return '夜深了，早点休息';
+  if (h < 9) return '早上好';
+  if (h < 12) return '上午好';
+  if (h < 14) return '中午好';
+  if (h < 18) return '下午好';
+  if (h < 22) return '晚上好';
+  return '夜深了，早点休息';
+}
+
+/* 数据导出/导入 */
+function exportData() {
+  const data = {
+    version: '1.5',
+    exportedAt: new Date().toISOString(),
+    data: state
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `暴富工作台_${todayStr()}_v1.5.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('数据已导出');
+}
+function importData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const imported = JSON.parse(ev.target.result);
+        if (!imported.data) { toast('文件格式不正确'); return; }
+        if (!confirm('确定导入数据吗？\n这会覆盖当前所有数据，建议先导出备份。')) return;
+        state = Object.assign(blank(), imported.data);
+        save();
+        render();
+        toast('数据已导入');
+      } catch (err) {
+        toast('文件解析失败');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
 }
 
 /* ---------- 1. 每日计划 ---------- */
@@ -922,6 +1089,74 @@ function goalProgress(goal) {
   return Math.min(100, Math.round(done / total * 100));
 }
 
+/* ========== 游戏化系统 ========== */
+// 火焰等级
+function fireLevel(streak) {
+  if (streak >= 30) return 3; // 粒子特效
+  if (streak >= 7) return 2;  // 大火焰+金边
+  if (streak >= 3) return 1;  // 小火苗
+  return 0;
+}
+function fireHtml(streak) {
+  const level = fireLevel(streak);
+  if (level === 0) return `<span class="fire-badge">🔥 ${streak}天</span>`;
+  if (level === 1) return `<span class="fire-badge fire-l1"><span class="fire-icon">🔥</span>${streak}天</span>`;
+  if (level === 2) return `<span class="fire-badge fire-l2"><span class="fire-icon">🔥</span>${streak}天</span>`;
+  return `<span class="fire-badge fire-l3"><span class="fire-icon">🔥</span>${streak}天<span class="fire-particles"></span></span>`;
+}
+
+// 成就徽章
+const BADGES = [
+  { id: 'first', icon: '🌱', name: '新芽', desc: '首次打卡', check: (g) => g.some(x => (x.records||[]).length > 0) },
+  { id: 'fire7', icon: '🔥', name: '七日之火', desc: '连续打卡 7 天', check: (g) => Math.max(...g.map(x => calcStreak(x.records||[])), 0) >= 7 },
+  { id: 'fire30', icon: '💎', name: '月度坚持', desc: '连续打卡 30 天', check: (g) => Math.max(...g.map(x => calcStreak(x.records||[])), 0) >= 30 },
+  { id: 'fire100', icon: '🏆', name: '百日王者', desc: '连续打卡 100 天', check: (g) => Math.max(...g.map(x => calcStreak(x.records||[])), 0) >= 100 },
+  { id: 'reader', icon: '📚', name: '书虫', desc: '阅读记录 10 条', check: (g, s) => (s.readings||[]).length >= 10 },
+  { id: 'mover', icon: '🏃', name: '铁人', desc: '锻炼记录 20 条', check: (g, s) => (s.exercises||[]).length >= 20 },
+  { id: 'planner', icon: '📋', name: '规划师', desc: '累计添加 50 条计划', check: (g, s) => Object.values(s.plans||{}).flat().length >= 50 },
+  { id: 'saver', icon: '💰', name: '省钱达人', desc: '单日花费 < ¥50', check: (g, s) => (s.expenses||[]).some(e => e.amount < 50) },
+];
+function getUnlockedBadges() {
+  const goals = state.goals || [];
+  return BADGES.filter(b => b.check(goals, state));
+}
+
+// 打卡日历
+function renderCheckinCalendar(goal) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const today = now.getDate();
+  const checkinDates = new Set((goal.records || []).map(r => r.date));
+  const ym = y + '-' + pad(m + 1);
+
+  const weeks = ['日', '一', '二', '三', '四', '五', '六'];
+  let cells = '';
+  for (let i = 0; i < firstDay; i++) cells += '<div class="cal-cell empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = pad(d);
+    const dateStr = ym + '-' + ds;
+    const isToday = d === today;
+    const isChecked = checkinDates.has(dateStr);
+    const isPast = d < today;
+    cells += `
+      <div class="cal-cell ${isToday ? 'today' : ''} ${isChecked ? 'checked' : ''} ${isPast && !isChecked ? 'missed' : ''}">
+        <div class="cal-day">${d}</div>
+        ${isChecked ? '<div class="cal-check">✓</div>' : ''}
+      </div>`;
+  }
+
+  return `
+    <div class="checkin-calendar">
+      <div class="checkin-cal-header">${y}年${m + 1}月 打卡日历</div>
+      <div class="cal-grid">
+        ${weeks.map(w => `<div class="cal-header">${w}</div>`).join('')}
+        ${cells}
+      </div>
+    </div>`;
+}
+
 function renderGoal() {
   const goals = state.goals || [];
   const today = todayStr();
@@ -977,7 +1212,7 @@ function renderGoal() {
               <div class="goal-ring-text">${pct}%</div>
             </div>
           </div>
-          <div class="goal-card-streak">🔥 连续 ${streak} 天</div>
+          <div class="goal-card-streak">${fireHtml(streak)}</div>
           <div class="goal-card-actions">
             <button class="btn primary sm" onclick="checkinGoal('${g.id}')">✅ 今日打卡</button>
             <button class="btn ghost sm" onclick="openGoalModal('${g.id}')">✏️ 编辑</button>
@@ -987,12 +1222,31 @@ function renderGoal() {
         </div>`;
     }).join('');
 
+  // 成就徽章
+  const unlockedBadges = getUnlockedBadges();
+  const badgesHtml = unlockedBadges.length > 0 ? `
+    <div class="goal-badges">
+      <div class="goal-badges-title">🏆 成就徽章</div>
+      <div class="goal-badges-list">
+        ${unlockedBadges.map(b => `
+          <div class="goal-badge" title="${b.desc}">
+            <span class="goal-badge-icon">${b.icon}</span>
+            <span class="goal-badge-name">${b.name}</span>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
+  // 打卡日历（显示第一个目标的日历）
+  const calHtml = goals.length > 0 ? renderCheckinCalendar(goals[0]) : '';
+
   return `
     ${bannerHtml}
     <div class="card">
       <div class="card-title">🎯 目标打卡 <span class="card-sub">· 设定目标，每日打卡，奖励自己</span></div>
       ${goals.length > 0 && rewardsHtml ? `<div class="goal-rewards">${rewardsHtml}</div>` : ''}
+      ${badgesHtml}
       <div class="goal-list">${goalsHtml}</div>
+      ${calHtml}
       <button class="task-fab" onclick="openGoalModal()">＋</button>
     </div>`;
 }
